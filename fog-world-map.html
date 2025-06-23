@@ -51,6 +51,7 @@
             min-width: 280px;
             z-index: 1001;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: width 0.3s, min-width 0.3s, padding 0.3s;
         }
         
         .control-panel h3 {
@@ -195,6 +196,39 @@
             transition: width 0.3s ease;
             width: 0%;
         }
+        
+        /* 折叠按钮样式 */
+        .collapse-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.4);
+            color: #00d4ff;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 1002;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .collapse-btn:hover {
+            background: rgba(0,212,255,0.2);
+        }
+        .control-panel.collapsed {
+            min-width: 0;
+            width: 48px;
+            padding: 12px 8px 12px 8px;
+            overflow: hidden;
+            transition: width 0.3s, min-width 0.3s, padding 0.3s;
+        }
+        .control-panel.collapsed *:not(.collapse-btn) {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -210,7 +244,8 @@
     </div>
     
     <!-- 控制面板 -->
-    <div class="control-panel">
+    <div class="control-panel" id="control-panel">
+        <button class="collapse-btn" id="collapse-btn" title="折叠/展开面板">&lt;</button>
         <h3>探索统计</h3>
         <div class="stat-item">
             <span>已探索区域:</span>
@@ -840,6 +875,16 @@
                 });
             }
             new FogWorldMap();
+            // 折叠/展开控制面板逻辑
+            const panel = document.getElementById('control-panel');
+            const btn = document.getElementById('collapse-btn');
+            let collapsed = false;
+            btn.addEventListener('click', () => {
+                collapsed = !collapsed;
+                panel.classList.toggle('collapsed', collapsed);
+                btn.innerHTML = collapsed ? '&gt;' : '&lt;';
+                btn.title = collapsed ? '展开面板' : '折叠面板';
+            });
         });
     </script>
 </body>
