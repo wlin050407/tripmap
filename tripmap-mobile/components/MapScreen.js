@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, Dimensions, ActivityIndicator, Alert } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
+import ControlPanel from './ControlPanel';
 
 const { width, height } = Dimensions.get('window');
 const MAX_INTERVAL = 60 * 1000; // 60秒断点
@@ -12,6 +13,9 @@ export default function MapScreen() {
   const [loading, setLoading] = useState(true);
   const [trackSegments, setTrackSegments] = useState([[]]); // 轨迹分段
   const watchId = useRef(null);
+  // 统计数据
+  const [explorationTime, setExplorationTime] = useState('00:00');
+  const [startTime, setStartTime] = useState(Date.now());
 
   useEffect(() => {
     let isMounted = true;
@@ -97,6 +101,35 @@ export default function MapScreen() {
     return R * c;
   }
 
+  // 计时器
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const minutes = Math.floor(elapsed / 60);
+      const seconds = elapsed % 60;
+      setExplorationTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [startTime]);
+
+  // 统计点数、距离、已探索区域、精度
+  let totalPoints = 0, totalDistance = 0, lastPoint = null, gpsAccuracy = '未知';
+  trackSegments.forEach(segment => {
+    totalPoints += segment.length;
+    for (let i = 1; i < segment.length; i++) {
+      totalDistance += getDistance(segment[i - 1], segment[i]) / 1000;
+    }
+    if (segment.length > 0) lastPoint = segment[segment.length - 1];
+  });
+  const exploredArea = Math.min(100, totalPoints * 0.1); // 简化算法
+  if (lastPoint && lastPoint.accuracy !== undefined) {
+    const acc = lastPoint.accuracy;
+    if (acc > 50) gpsAccuracy = `${acc.toFixed(1)}米 (差)`;
+    else if (acc > 20) gpsAccuracy = `${acc.toFixed(1)}米 (一般)`;
+    else if (acc > 10) gpsAccuracy = `${acc.toFixed(1)}米 (良好)`;
+    else gpsAccuracy = `${acc.toFixed(1)}米 (优秀)`;
+  }
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -137,6 +170,14 @@ export default function MapScreen() {
           />
         )}
       </MapView>
+      {/* 统计面板 */}
+      <ControlPanel
+        exploredArea={exploredArea}
+        trackPoints={totalPoints}
+        explorationTime={explorationTime}
+        totalDistance={totalDistance}
+        gpsAccuracy={gpsAccuracy}
+      />
     </View>
   );
 }
