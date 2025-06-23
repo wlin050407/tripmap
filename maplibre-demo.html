@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapLibre GL - 现代免费地图</title>
+    
+    <!-- MapLibre GL CSS -->
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        
+        .maplibre-ctrl-group {
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .style-switcher {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .style-switcher h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .style-switcher button {
+            display: block;
+            width: 100%;
+            margin: 5px 0;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background: #f0f0f0;
+            color: #333;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .style-switcher button:hover {
+            background: #e0e0e0;
+        }
+        
+        .style-switcher button.active {
+            background: #007bff;
+            color: white;
+        }
+        
+        .info-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 12px;
+            color: #666;
+            max-width: 250px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 地图容器 -->
+    <div id="map"></div>
+    
+    <!-- 样式切换器 -->
+    <div class="style-switcher">
+        <h3>地图样式</h3>
+        <button id="style-osm" class="active">OpenStreetMap</button>
+        <button id="style-chinese">中文地图</button>
+        <button id="style-satellite">卫星图</button>
+        <button id="style-dark">深色主题</button>
+        <button id="style-terrain">地形图</button>
+    </div>
+    
+    <!-- 信息面板 -->
+    <div class="info-panel">
+        <strong>MapLibre GL</strong><br>
+        • 完全免费开源<br>
+        • 高性能 WebGL 渲染<br>
+        • 矢量地图支持<br>
+        • 零依赖，现代架构
+    </div>
+
+    <!-- MapLibre GL JavaScript -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+    <script>
+        // 地图样式配置
+        const mapStyles = {
+            osm: {
+                version: 8,
+                sources: {
+                    'osm': {
+                        type: 'raster',
+                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '© OpenStreetMap contributors'
+                    }
+                },
+                layers: [{
+                    id: 'osm',
+                    type: 'raster',
+                    source: 'osm'
+                }]
+            },
+            chinese: {
+                version: 8,
+                sources: {
+                    'chinese': {
+                        type: 'raster',
+                        tiles: ['https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'],
+                        tileSize: 256,
+                        attribution: '© 高德地图'
+                    }
+                },
+                layers: [{
+                    id: 'chinese',
+                    type: 'raster',
+                    source: 'chinese'
+                }]
+            },
+            satellite: {
+                version: 8,
+                sources: {
+                    'satellite': {
+                        type: 'raster',
+                        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+                        tileSize: 256,
+                        attribution: '© Esri'
+                    }
+                },
+                layers: [{
+                    id: 'satellite',
+                    type: 'raster',
+                    source: 'satellite'
+                }]
+            },
+            dark: {
+                version: 8,
+                sources: {
+                    'dark': {
+                        type: 'raster',
+                        tiles: ['https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '© CartoDB'
+                    }
+                },
+                layers: [{
+                    id: 'dark',
+                    type: 'raster',
+                    source: 'dark'
+                }]
+            },
+            terrain: {
+                version: 8,
+                sources: {
+                    'terrain': {
+                        type: 'raster',
+                        tiles: ['https://tile.opentopomap.org/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '© OpenTopoMap'
+                    }
+                },
+                layers: [{
+                    id: 'terrain',
+                    type: 'raster',
+                    source: 'terrain'
+                }]
+            }
+        };
+
+        // 初始化地图
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: mapStyles.osm,
+            center: [116.4074, 39.9042], // 北京
+            zoom: 10,
+            attributionControl: true,
+            cooperativeGestures: false // 允许直接缩放
+        });
+
+        // 添加控件
+        map.addControl(new maplibregl.NavigationControl(), 'top-left');
+        map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+        map.addControl(new maplibregl.FullscreenControl(), 'top-left');
+
+        // 尝试添加位置控件
+        if (navigator.geolocation) {
+            map.addControl(new maplibregl.GeolocateControl({
+                positionOptions: {
+                    enableHighAccuracy: true
+                },
+                trackUserLocation: true,
+                showUserHeading: true
+            }), 'top-left');
+        }
+
+        // 样式切换功能
+        const styleButtons = document.querySelectorAll('.style-switcher button');
+        
+        styleButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                // 更新按钮状态
+                styleButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                
+                // 切换地图样式
+                const styleId = button.id.replace('style-', '');
+                if (mapStyles[styleId]) {
+                    map.setStyle(mapStyles[styleId]);
+                }
+            });
+        });
+
+        // 地图加载完成事件
+        map.on('load', () => {
+            console.log('MapLibre GL 地图加载完成！');
+        });
+
+        // 地图点击事件
+        map.on('click', (e) => {
+            const { lng, lat } = e.lngLat;
+            
+            // 创建弹窗
+            new maplibregl.Popup()
+                .setLngLat([lng, lat])
+                .setHTML(`
+                    <div style="font-size: 12px;">
+                        <strong>点击位置</strong><br>
+                        经度: ${lng.toFixed(6)}<br>
+                        纬度: ${lat.toFixed(6)}
+                    </div>
+                `)
+                .addTo(map);
+        });
+
+        // 地图移动事件
+        map.on('move', () => {
+            // 可以在这里添加更多交互功能
+        });
+
+        console.log('MapLibre GL 地图应用已启动');
+        console.log('特点: 免费、现代、高性能、零依赖');
+    </script>
+</body>
+</html> 

@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>迷雾世界 - 探索你的足迹</title>
+    
+    <!-- MapLibre GL CSS -->
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #1a1a1a;
+            color: white;
+            overflow: hidden;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100%;
+            position: relative;
+        }
+        
+        /* 迷雾画布 */
+        #fog-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        /* 控制面板 */
+        .control-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            min-width: 280px;
+            z-index: 1001;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .control-panel h3 {
+            margin-bottom: 15px;
+            color: #00d4ff;
+            font-size: 18px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        
+        .stat-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        
+        .button-group {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ff4757, #ff3742);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 71, 87, 0.3);
+        }
+        
+        /* 探索模式指示器 */
+        .exploration-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 255, 136, 0.9);
+            color: black;
+            padding: 12px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+            display: none;
+        }
+        
+        .exploration-indicator.active {
+            display: block;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        /* 足迹路径样式 */
+        .maplibre-ctrl-group {
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        /* 位置权限提示 */
+        .location-prompt {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            z-index: 1002;
+            max-width: 400px;
+            display: none;
+        }
+        
+        .location-prompt.show {
+            display: block;
+        }
+        
+        .location-prompt h3 {
+            color: #00d4ff;
+            margin-bottom: 15px;
+        }
+        
+        .location-prompt p {
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        
+        /* 进度条 */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00d4ff);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+    </style>
+</head>
+<body>
+    <!-- 地图容器 -->
+    <div id="map">
+        <!-- 迷雾画布 -->
+        <canvas id="fog-canvas"></canvas>
+    </div>
+    
+    <!-- 探索模式指示器 -->
+    <div class="exploration-indicator" id="exploration-indicator">
+        正在探索中...
+    </div>
+    
+    <!-- 控制面板 -->
+    <div class="control-panel">
+        <h3>探索统计</h3>
+        <div class="stat-item">
+            <span>已探索区域:</span>
+            <span class="stat-value" id="explored-area">0.0%</span>
+        </div>
+        <div class="stat-item">
+            <span>足迹点数:</span>
+            <span class="stat-value" id="track-points">0</span>
+        </div>
+        <div class="stat-item">
+            <span>探索时长:</span>
+            <span class="stat-value" id="exploration-time">00:00</span>
+        </div>
+        <div class="stat-item">
+            <span>移动距离:</span>
+            <span class="stat-value" id="total-distance">0 km</span>
+        </div>
+        <div class="stat-item">
+            <span>GPS精度:</span>
+            <span class="stat-value" id="gps-accuracy">未知</span>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn btn-primary" id="start-exploration">开始探索</button>
+            <button class="btn btn-secondary" id="toggle-fog">切换迷雾</button>
+            <button class="btn btn-secondary" id="center-location">回到当前位置</button>
+            <button class="btn btn-danger" id="clear-exploration">清除探索记录</button>
+        </div>
+    </div>
+    
+    <!-- 位置权限提示 -->
+    <div class="location-prompt" id="location-prompt">
+        <h3>需要位置权限</h3>
+        <p>为了记录您的探索足迹，需要获取您的位置信息。请允许浏览器访问您的位置。</p>
+        <button class="btn btn-primary" id="grant-location">允许位置访问</button>
+    </div>
+
+    <!-- MapLibre GL JavaScript -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+    <script>
+        class FogWorldMap {
+            constructor() {
+                this.map = null;
+                this.fogCanvas = null;
+                this.fogCtx = null;
+                this.isExploring = false;
+                this.userPosition = null;
+                this.trackPoints = [];
+                this.exploredAreas = new Set();
+                this.startTime = null;
+                this.watchId = null;
+                this.fogVisible = true;
+                this.explorationRadius = 10; // 调整为10米半径（20米宽）
+                
+                // 统计数据
+                this.stats = {
+                    exploredArea: 0,
+                    trackPoints: 0,
+                    explorationTime: 0,
+                    totalDistance: 0
+                };
+                
+                this.init();
+            }
+            
+            init() {
+                this.initMap();
+                this.initFogCanvas();
+                this.initEventListeners();
+                this.loadSavedData();
+                this.startStatsTimer();
+            }
+            
+            initMap() {
+                // 初始化地图
+                this.map = new maplibregl.Map({
+                    container: 'map',
+                    style: {
+                        version: 8,
+                        sources: {
+                            'osm': {
+                                type: 'raster',
+                                tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                                tileSize: 256,
+                                attribution: '© OpenStreetMap contributors'
+                            }
+                        },
+                        layers: [{
+                            id: 'osm',
+                            type: 'raster',
+                            source: 'osm'
+                        }]
+                    },
+                    center: [116.4074, 39.9042], // 北京
+                    zoom: 10,
+                    attributionControl: false
+                });
+                
+                // 添加控件
+                this.map.addControl(new maplibregl.NavigationControl(), 'bottom-left');
+                this.map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+                
+                // 地图加载完成后初始化迷雾
+                this.map.on('load', () => {
+                    this.initFog();
+                    this.addTrackLayer();
+                });
+                
+                // 地图移动时更新迷雾
+                this.map.on('move', () => {
+                    this.updateFogCanvas();
+                });
+                
+                this.map.on('resize', () => {
+                    this.resizeFogCanvas();
+                });
+            }
+            
+            initFogCanvas() {
+                this.fogCanvas = document.getElementById('fog-canvas');
+                this.fogCtx = this.fogCanvas.getContext('2d');
+                this.resizeFogCanvas();
+            }
+            
+            resizeFogCanvas() {
+                const mapContainer = this.map.getContainer();
+                this.fogCanvas.width = mapContainer.offsetWidth;
+                this.fogCanvas.height = mapContainer.offsetHeight;
+                this.updateFogCanvas();
+            }
+            
+            initFog() {
+                this.updateFogCanvas();
+            }
+            
+            updateFogCanvas() {
+                if (!this.fogVisible) {
+                    this.fogCtx.clearRect(0, 0, this.fogCanvas.width, this.fogCanvas.height);
+                    return;
+                }
+                
+                // 清除画布
+                this.fogCtx.clearRect(0, 0, this.fogCanvas.width, this.fogCanvas.height);
+                
+                // 绘制迷雾 - 降低透明度
+                this.fogCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                this.fogCtx.fillRect(0, 0, this.fogCanvas.width, this.fogCanvas.height);
+                
+                // 清除已探索区域
+                this.fogCtx.globalCompositeOperation = 'destination-out';
+                
+                if (this.trackPoints.length > 0) {
+                    // 创建连续的探索路径
+                    this.drawContinuousPath();
+                }
+                
+                this.fogCtx.globalCompositeOperation = 'source-over';
+            }
+            
+            // 绘制连续的探索路径
+            drawContinuousPath() {
+                if (this.trackPoints.length === 0) return;
+
+                const pathWidthPixels = this.getRadiusInPixels(this.trackPoints[0], this.explorationRadius) * 2;
+                console.log(`探索半径: ${this.explorationRadius}米, 路径宽度: ${pathWidthPixels.toFixed(1)}像素, 缩放: ${this.map.getZoom()}`);
+
+                // 如果计算出的宽度太小，则不绘制
+                if (pathWidthPixels < 1) return;
+
+                this.fogCtx.lineWidth = pathWidthPixels;
+                this.fogCtx.lineCap = 'round'; // 圆形线头
+                this.fogCtx.lineJoin = 'round'; // 圆形连接
+                this.fogCtx.strokeStyle = 'rgba(255, 255, 255, 1)';
+                
+                const screenPoints = this.trackPoints.map(p => this.map.project([p.lng, p.lat]));
+
+                // 如果只有一个点，画一个圆
+                if (screenPoints.length === 1) {
+                    this.fogCtx.fillStyle = 'rgba(255, 255, 255, 1)';
+                    this.fogCtx.beginPath();
+                    this.fogCtx.arc(screenPoints[0].x, screenPoints[0].y, pathWidthPixels / 2, 0, Math.PI * 2);
+                    this.fogCtx.fill();
+                    return;
+                }
+                
+                this.fogCtx.beginPath();
+                this.fogCtx.moveTo(screenPoints[0].x, screenPoints[0].y);
+
+                if (screenPoints.length === 2) {
+                    // 两个点之间只画直线
+                    this.fogCtx.lineTo(screenPoints[1].x, screenPoints[1].y);
+                } else {
+                    // 三个点及以上，使用二次贝塞尔曲线平滑路径
+                    let i;
+                    for (i = 1; i < screenPoints.length - 2; i++) {
+                        const xc = (screenPoints[i].x + screenPoints[i + 1].x) / 2;
+                        const yc = (screenPoints[i].y + screenPoints[i + 1].y) / 2;
+                        this.fogCtx.quadraticCurveTo(screenPoints[i].x, screenPoints[i].y, xc, yc);
+                    }
+                    // 连接最后两个点
+                    this.fogCtx.quadraticCurveTo(screenPoints[i].x, screenPoints[i].y, screenPoints[i + 1].x, screenPoints[i + 1].y);
+                }
+                
+                // 绘制平滑且宽阔的路径
+                this.fogCtx.stroke();
+            }
+            
+            // 计算真实距离对应的像素半径
+            getRadiusInPixels(centerPoint, radiusMeters) {
+                const center = [centerPoint.lng, centerPoint.lat];
+                const radiusPoint = this.getPointAtDistance(center, radiusMeters);
+                const centerScreenPos = this.map.project(center);
+                const radiusScreenPos = this.map.project(radiusPoint);
+                return Math.abs(radiusScreenPos.x - centerScreenPos.x);
+            }
+            
+            // 计算距离某点指定距离的坐标点（用于计算像素半径）
+            getPointAtDistance(centerPoint, distanceMeters) {
+                const [lng, lat] = centerPoint;
+                const R = 6371000; // 地球半径（米）
+                const bearing = 90; // 正东方向，用于正确计算水平距离
+                
+                const lat1 = lat * Math.PI / 180;
+                const lng1 = lng * Math.PI / 180;
+                const bearingRad = bearing * Math.PI / 180;
+                
+                const lat2 = Math.asin(
+                    Math.sin(lat1) * Math.cos(distanceMeters / R) +
+                    Math.cos(lat1) * Math.sin(distanceMeters / R) * Math.cos(bearingRad)
+                );
+                
+                const lng2 = lng1 + Math.atan2(
+                    Math.sin(bearingRad) * Math.sin(distanceMeters / R) * Math.cos(lat1),
+                    Math.cos(distanceMeters / R) - Math.sin(lat1) * Math.sin(lat2)
+                );
+                
+                return [lng2 * 180 / Math.PI, lat2 * 180 / Math.PI];
+            }
+            
+            addTrackLayer() {
+                // 只添加当前位置标记
+                this.map.addSource('current-location', {
+                    type: 'geojson',
+                    data: {
+                        type: 'Feature',
+                        properties: {},
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [0, 0]
+                        }
+                    }
+                });
+                
+                this.map.addLayer({
+                    id: 'current-location-layer',
+                    type: 'circle',
+                    source: 'current-location',
+                    paint: {
+                        'circle-radius': 8,
+                        'circle-color': '#00d4ff',
+                        'circle-stroke-width': 3,
+                        'circle-stroke-color': '#ffffff',
+                        'circle-opacity': 0.9
+                    }
+                });
+            }
+            
+            updateTrackLayer() {
+                // 只更新当前位置
+                if (this.userPosition) {
+                    this.map.getSource('current-location').setData({
+                        type: 'Feature',
+                        properties: {},
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [this.userPosition.lng, this.userPosition.lat]
+                        }
+                    });
+                }
+            }
+            
+            initEventListeners() {
+                // 开始探索按钮
+                document.getElementById('start-exploration').addEventListener('click', () => {
+                    this.toggleExploration();
+                });
+                
+                // 切换迷雾按钮
+                document.getElementById('toggle-fog').addEventListener('click', () => {
+                    this.toggleFog();
+                });
+                
+                // 回到当前位置按钮
+                document.getElementById('center-location').addEventListener('click', () => {
+                    this.centerToUserLocation();
+                });
+                
+                // 清除探索记录按钮
+                document.getElementById('clear-exploration').addEventListener('click', () => {
+                    this.clearExploration();
+                });
+                
+                // 位置权限按钮
+                document.getElementById('grant-location').addEventListener('click', () => {
+                    this.requestLocationPermission();
+                });
+            }
+            
+            toggleExploration() {
+                if (this.isExploring) {
+                    this.stopExploration();
+                } else {
+                    this.startExploration();
+                }
+            }
+            
+            async startExploration() {
+                if (!navigator.geolocation) {
+                    alert('您的浏览器不支持地理位置功能');
+                    return;
+                }
+                
+                try {
+                    // 请求位置权限
+                    const position = await this.getCurrentPosition();
+                    this.userPosition = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                        accuracy: position.coords.accuracy
+                    };
+                    
+                    // 显示初始位置精度
+                    console.log(`初始位置精度: ${position.coords.accuracy.toFixed(1)}米`);
+                    
+                    // 移动地图到用户位置
+                    this.map.flyTo({
+                        center: [this.userPosition.lng, this.userPosition.lat],
+                        zoom: 16 // 提高初始缩放级别
+                    });
+                    
+                    // 立即更新位置标记，显示蓝点
+                    this.updateTrackLayer();
+                    
+                    // 开始追踪
+                    this.isExploring = true;
+                    this.startTime = Date.now();
+                    
+                    // 优化位置追踪参数
+                    this.watchId = navigator.geolocation.watchPosition(
+                        (position) => this.onPositionUpdate(position),
+                        (error) => this.onPositionError(error),
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 15000, // 增加超时时间
+                            maximumAge: 3000 // 减少缓存时间，获取更新鲜的位置
+                        }
+                    );
+                    
+                    // 更新UI
+                    document.getElementById('start-exploration').textContent = '停止探索';
+                    document.getElementById('start-exploration').className = 'btn btn-danger';
+                    document.getElementById('exploration-indicator').classList.add('active');
+                    
+                } catch (error) {
+                    console.error('获取位置失败:', error);
+                    document.getElementById('location-prompt').classList.add('show');
+                }
+            }
+            
+            stopExploration() {
+                this.isExploring = false;
+                
+                if (this.watchId) {
+                    navigator.geolocation.clearWatch(this.watchId);
+                    this.watchId = null;
+                }
+                
+                // 更新UI
+                document.getElementById('start-exploration').textContent = '开始探索';
+                document.getElementById('start-exploration').className = 'btn btn-primary';
+                document.getElementById('exploration-indicator').classList.remove('active');
+                
+                // 保存数据
+                this.saveData();
+            }
+            
+            onPositionUpdate(position) {
+                const newPos = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                    timestamp: Date.now(),
+                    accuracy: position.coords.accuracy // 添加精度信息
+                };
+                
+                // 总是更新当前位置（蓝点），无论精度如何
+                this.userPosition = newPos;
+                this.updateTrackLayer();
+                this.updateStats();
+                
+                // 检查GPS精度，只有精度较好时才记录足迹（小于50米）
+                if (position.coords.accuracy > 50) {
+                    console.log(`GPS精度较低: ${position.coords.accuracy}米，跳过足迹记录`);
+                    return;
+                }
+                
+                // 检查是否移动了足够的距离才记录足迹
+                if (this.trackPoints.length > 0) {
+                    const lastPoint = this.trackPoints[this.trackPoints.length - 1];
+                    const distance = this.calculateDistance(lastPoint, newPos);
+                    if (distance < 5) return; // 改为5米才记录，更精确
+                    
+                    // 在两个点之间插入中间点，确保路径连续
+                    this.interpolatePoints(lastPoint, newPos);
+                    
+                    this.stats.totalDistance += distance / 1000; // 转换为公里
+                } else {
+                    // 第一个点直接添加
+                    this.trackPoints.push(newPos);
+                }
+                
+                // 更新迷雾
+                this.updateFogCanvas();
+                this.saveData();
+                
+                // 显示位置精度信息
+                console.log(`位置更新: 精度 ${position.coords.accuracy.toFixed(1)}米`);
+            }
+            
+            // 在两个GPS点之间插入中间点，确保路径连续
+            interpolatePoints(startPos, endPos) {
+                const distance = this.calculateDistance(startPos, endPos);
+                
+                // 如果距离小于探索半径的一半，直接添加终点
+                if (distance <= this.explorationRadius / 2) {
+                    this.trackPoints.push(endPos);
+                    return;
+                }
+                
+                // 计算需要插入多少个中间点（每10米一个点）
+                const stepDistance = 10; // 10米间隔
+                const steps = Math.ceil(distance / stepDistance);
+                
+                const latStep = (endPos.lat - startPos.lat) / steps;
+                const lngStep = (endPos.lng - startPos.lng) / steps;
+                
+                // 插入中间点
+                for (let i = 1; i <= steps; i++) {
+                    const interpolatedPoint = {
+                        lat: startPos.lat + latStep * i,
+                        lng: startPos.lng + lngStep * i,
+                        timestamp: Date.now(),
+                        accuracy: endPos.accuracy
+                    };
+                    this.trackPoints.push(interpolatedPoint);
+                }
+            }
+            
+            onPositionError(error) {
+                console.error('位置获取错误:', error);
+                switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                        document.getElementById('location-prompt').classList.add('show');
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        alert('位置信息不可用');
+                        break;
+                    case error.TIMEOUT:
+                        console.log('位置获取超时，继续尝试...');
+                        break;
+                }
+            }
+            
+            getCurrentPosition() {
+                return new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 60000
+                    });
+                });
+            }
+            
+            requestLocationPermission() {
+                document.getElementById('location-prompt').classList.remove('show');
+                this.startExploration();
+            }
+            
+            toggleFog() {
+                this.fogVisible = !this.fogVisible;
+                this.updateFogCanvas();
+                
+                const btn = document.getElementById('toggle-fog');
+                btn.textContent = this.fogVisible ? '隐藏迷雾' : '显示迷雾';
+            }
+            
+            centerToUserLocation() {
+                if (this.userPosition) {
+                    this.map.flyTo({
+                        center: [this.userPosition.lng, this.userPosition.lat],
+                        zoom: 15
+                    });
+                } else {
+                    alert('尚未获取到您的位置信息');
+                }
+            }
+            
+            clearExploration() {
+                if (confirm('确定要清除所有探索记录吗？此操作不可撤销。')) {
+                    this.trackPoints = [];
+                    this.exploredAreas.clear();
+                    this.stats = {
+                        exploredArea: 0,
+                        trackPoints: 0,
+                        explorationTime: 0,
+                        totalDistance: 0
+                    };
+                    
+                    // 清除当前位置显示
+                    if (this.map.getSource('current-location')) {
+                        this.map.getSource('current-location').setData({
+                            type: 'Feature',
+                            properties: {},
+                            geometry: {
+                                type: 'Point',
+                                coordinates: [0, 0]
+                            }
+                        });
+                    }
+                    
+                    this.updateFogCanvas();
+                    this.updateStats();
+                    this.saveData();
+                }
+            }
+            
+            calculateDistance(pos1, pos2) {
+                const R = 6371000; // 地球半径（米）
+                const dLat = (pos2.lat - pos1.lat) * Math.PI / 180;
+                const dLng = (pos2.lng - pos1.lng) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                         Math.cos(pos1.lat * Math.PI / 180) * Math.cos(pos2.lat * Math.PI / 180) *
+                         Math.sin(dLng/2) * Math.sin(dLng/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c;
+            }
+            
+            updateStats() {
+                this.stats.trackPoints = this.trackPoints.length;
+                this.stats.exploredArea = Math.min(100, this.trackPoints.length * 0.1); // 简化计算
+                
+                document.getElementById('explored-area').textContent = this.stats.exploredArea.toFixed(1) + '%';
+                document.getElementById('track-points').textContent = this.stats.trackPoints;
+                document.getElementById('total-distance').textContent = this.stats.totalDistance.toFixed(2) + ' km';
+                document.getElementById('progress-fill').style.width = this.stats.exploredArea + '%';
+                
+                // 更新GPS精度显示
+                if (this.userPosition && this.userPosition.accuracy) {
+                    const accuracy = this.userPosition.accuracy;
+                    let accuracyText = `${accuracy.toFixed(1)}米`;
+                    let accuracyColor = '#00ff88'; // 默认绿色
+                    
+                    if (accuracy > 50) {
+                        accuracyColor = '#ff4757'; // 红色 - 精度差
+                        accuracyText += ' (差)';
+                    } else if (accuracy > 20) {
+                        accuracyColor = '#ffa502'; // 橙色 - 精度一般
+                        accuracyText += ' (一般)';
+                    } else if (accuracy > 10) {
+                        accuracyColor = '#fffa65'; // 黄色 - 精度良好
+                        accuracyText += ' (良好)';
+                    } else {
+                        accuracyText += ' (优秀)'; // 绿色 - 精度优秀
+                    }
+                    
+                    const accuracyElement = document.getElementById('gps-accuracy');
+                    accuracyElement.textContent = accuracyText;
+                    accuracyElement.style.color = accuracyColor;
+                } else {
+                    document.getElementById('gps-accuracy').textContent = '未知';
+                    document.getElementById('gps-accuracy').style.color = '#666';
+                }
+            }
+            
+            startStatsTimer() {
+                setInterval(() => {
+                    if (this.isExploring && this.startTime) {
+                        const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                        const minutes = Math.floor(elapsed / 60);
+                        const seconds = elapsed % 60;
+                        document.getElementById('exploration-time').textContent = 
+                            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    }
+                }, 1000);
+            }
+            
+            saveData() {
+                const data = {
+                    trackPoints: this.trackPoints,
+                    stats: this.stats,
+                    lastSaved: Date.now()
+                };
+                localStorage.setItem('fogWorldData', JSON.stringify(data));
+            }
+            
+            loadSavedData() {
+                const saved = localStorage.getItem('fogWorldData');
+                if (saved) {
+                    try {
+                        const data = JSON.parse(saved);
+                        this.trackPoints = data.trackPoints || [];
+                        this.stats = data.stats || this.stats;
+                        
+                        // 恢复地图显示
+                        setTimeout(() => {
+                            this.updateTrackLayer();
+                            this.updateFogCanvas();
+                            this.updateStats();
+                        }, 1000);
+                        
+                    } catch (error) {
+                        console.error('加载保存数据失败:', error);
+                    }
+                }
+            }
+        }
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', () => {
+            new FogWorldMap();
+        });
+    </script>
+</body>
+</html> 
