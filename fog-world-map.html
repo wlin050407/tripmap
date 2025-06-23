@@ -293,25 +293,9 @@
                 // 初始化地图
                 this.map = new maplibregl.Map({
                     container: 'map',
-                    style: {
-                        version: 8,
-                        sources: {
-                            'osm': {
-                                type: 'raster',
-                                tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                                tileSize: 256,
-                                attribution: '© OpenStreetMap contributors'
-                            }
-                        },
-                        layers: [{
-                            id: 'osm',
-                            type: 'raster',
-                            source: 'osm'
-                        }]
-                    },
-                    center: [116.4074, 39.9042], // 北京
-                    zoom: 10,
-                    attributionControl: false
+                    style: 'https://demotiles.maplibre.org/style.json',
+                    center: [116.397, 39.916],
+                    zoom: 10
                 });
                 
                 // 添加控件
