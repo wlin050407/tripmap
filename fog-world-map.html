@@ -248,7 +248,7 @@
     <!-- 位置权限提示 -->
     <div class="location-prompt" id="location-prompt">
         <h3>需要位置权限</h3>
-        <p>为了记录您的探索足迹，需要获取您的位置信息。请允许浏览器访问您的位置。</p>
+        <p>为了记录您的探索足迹，需要获取您的位置信息。请允许浏览器访问您的位置。\n如果您之前拒绝了权限，请在浏览器或系统设置中手动开启定位权限。</p>
         <button class="btn btn-primary" id="grant-location">允许位置访问</button>
     </div>
 
@@ -828,6 +828,17 @@
         
         // 初始化应用
         document.addEventListener('DOMContentLoaded', () => {
+            // 自动检测定位权限
+            if (navigator.permissions) {
+                navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
+                    if (result.state === 'denied') {
+                        const prompt = document.getElementById('location-prompt');
+                        prompt.classList.add('show');
+                        prompt.querySelector('p').textContent =
+                            '您已拒绝位置权限，请在浏览器或系统设置中手动开启定位权限。';
+                    }
+                });
+            }
             new FogWorldMap();
         });
     </script>
