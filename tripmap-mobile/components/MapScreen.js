@@ -139,23 +139,9 @@ export default function MapScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={{
-        position: 'absolute',
-        top: 200,
-        left: 20,
-        zIndex: 3000,
-        color: 'red',
-        fontSize: 32,
-        backgroundColor: 'white',
-        borderWidth: 2,
-        borderColor: 'red',
-        padding: 8
-      }}>
-        TEST
-      </Text>
+    <View style={{ flex: 1, position: 'relative' }}>
       <MapView
-        style={styles.map}
+        style={StyleSheet.absoluteFill}
         initialRegion={{
           latitude: location ? location.latitude : 39.9042,
           longitude: location ? location.longitude : 116.4074,
@@ -184,7 +170,20 @@ export default function MapScreen() {
           />
         )}
       </MapView>
-      {/* 统计面板 */}
+      <Text style={{
+        position: 'absolute',
+        top: 200,
+        left: 20,
+        zIndex: 3000,
+        color: 'red',
+        fontSize: 32,
+        backgroundColor: 'white',
+        borderWidth: 2,
+        borderColor: 'red',
+        padding: 8
+      }}>
+        TEST
+      </Text>
       <ControlPanel
         exploredArea={exploredArea}
         trackPoints={totalPoints}
