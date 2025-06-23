@@ -10,17 +10,26 @@ export default function MapScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('权限被拒绝', '需要定位权限才能使用地图功能');
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('权限被拒绝', '需要定位权限才能使用地图功能');
+          setLoading(false);
+          return;
+        }
+        let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High, timeout: 10000 });
+        if (isMounted) {
+          setLocation(loc.coords);
+          setLoading(false);
+        }
+      } catch (e) {
+        Alert.alert('定位失败', '无法获取当前位置，请检查定位权限或模拟器设置。');
         setLoading(false);
-        return;
       }
-      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setLocation(loc.coords);
-      setLoading(false);
     })();
+    return () => { isMounted = false; };
   }, []);
 
   if (loading) {
