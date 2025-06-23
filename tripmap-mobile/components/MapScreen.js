@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import { View, StyleSheet, Dimensions, ActivityIndicator, Alert, Text } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import ControlPanel from './ControlPanel';
@@ -140,6 +140,20 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
+      <Text style={{
+        position: 'absolute',
+        top: 200,
+        left: 20,
+        zIndex: 3000,
+        color: 'red',
+        fontSize: 32,
+        backgroundColor: 'white',
+        borderWidth: 2,
+        borderColor: 'red',
+        padding: 8
+      }}>
+        TEST
+      </Text>
       <MapView
         style={styles.map}
         initialRegion={{
